@@ -3,8 +3,11 @@ from __future__ import annotations
 import polars as pl
 
 from domain.config import DataConfig
+from domain.types import DataBundle
 
-def load_raw_dfs(cfg: DataConfig) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+
+
+def load_raw_dfs(cfg: DataConfig) -> DataBundle:
     fac_df = pl.read_ipc(cfg.fac_path, memory_map=False)
     fac_df = fac_df.with_columns(pl.col("date").str.strptime(pl.Date, "%Y%m%d"))
     fac_df = fac_df.with_columns(pl.col("Code").cast(pl.Categorical))
@@ -21,15 +24,14 @@ def load_raw_dfs(cfg: DataConfig) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFr
     liquid_df = liquid_df.unpivot(on=[c for c in liquid_df.columns if c != "date"], index="date", variable_name="Code", value_name="liquid")
     liquid_df = liquid_df.with_columns(pl.col("Code").cast(pl.Categorical))
     
-    return fac_df, label_df, liquid_df
+    return DataBundle(fac_df=fac_df, origin_label_df=label_df, norm_label_df=label_df, liquid_df=liquid_df)
 
 
-def clean_raw_dfs(
-    fac_df: pl.DataFrame,
-    label_df: pl.DataFrame,
-    liquid_df: pl.DataFrame,
-    min_valid_ratio: float = 0.1,
-) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+def clean_raw_dfs(data_bundle: DataBundle, min_valid_ratio: float = 0.1,) -> DataBundle:
+    fac_df = data_bundle.fac_df
+    origin_label_df = data_bundle.origin_label_df
+    liquid_df = data_bundle.liquid_df
+
     # 筛选掉全为非有效值的列
     factor_cols = [c for c in fac_df.columns if c not in ["date", "Code"]]
     valid_cols = [c for c in factor_cols if fac_df[c].is_not_null().sum() > 0 and fac_df[c].is_not_nan().sum() > 0]
@@ -85,8 +87,8 @@ def clean_raw_dfs(
         ])
     
     # 对label_df首先dropna和dropnull,然后进行截面zscore
-    label_df = label_df.filter(pl.col("label").is_not_null() & pl.col("label").is_not_nan())
-    label_df = label_df.with_columns(
+    origin_label_df = origin_label_df.filter(pl.col("label").is_not_null() & pl.col("label").is_not_nan())
+    norm_label_df = origin_label_df.with_columns(
         ((pl.col("label") - pl.col("label").mean().over("date")) / (pl.col("label").std().over("date") + 1e-8)).alias("label")
     )
 
@@ -95,4 +97,17 @@ def clean_raw_dfs(
         pl.col("liquid").fill_nan(0.0).fill_null(0.0).alias("liq")
     )
 
-    return fac_df, label_df, liquid_df
+    # 对齐
+    # 对齐三个数据框：取它们的交集
+    common_keys = (
+        fac_df.select("date", "Code")
+        .join(norm_label_df.select("date", "Code"), on=["date", "Code"], how="inner")
+        .join(liquid_df.select("date", "Code"), on=["date", "Code"], how="inner")
+    )
+    
+    fac_df = fac_df.join(common_keys, on=["date", "Code"], how="inner")
+    origin_label_df = origin_label_df.join(common_keys, on=["date", "Code"], how="inner")
+    norm_label_df = norm_label_df.join(common_keys, on=["date", "Code"], how="inner")
+    liquid_df = liquid_df.join(common_keys, on=["date", "Code"], how="inner")
+    
+    return DataBundle(common_keys=common_keys, fac_df=fac_df, origin_label_df=origin_label_df, norm_label_df=norm_label_df, liquid_df=liquid_df)

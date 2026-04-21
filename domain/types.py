@@ -36,3 +36,13 @@ class ForwardOut:
     score: torch.Tensor
     relations: List[Relation] = field(default_factory=list)
     reg_loss: torch.Tensor = field(default_factory=lambda: torch.zeros(()))
+
+
+@dataclass
+class DataBundle:
+    common_keys: pl.DataFrame
+
+    fac_df: pl.DataFrame
+    origin_label_df: pl.DataFrame
+    norm_label_df: pl.DataFrame
+    liquid_df: pl.DataFrame
