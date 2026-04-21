@@ -1,19 +1,20 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import date
-from typing import List
+from typing import Optional
 
+import polars as pl
 import torch
 
 
 @dataclass
 class DayBatch:
     date: date
-    codes: List[str]
-    x_alpha: torch.Tensor
-    x_style: torch.Tensor
+    codes: list[str]
+    x_factor: torch.Tensor
     x_meta: torch.Tensor
     ret_hist: torch.Tensor
-    industry: torch.Tensor
     label: torch.Tensor
     liquid: torch.Tensor
 
@@ -32,17 +33,15 @@ class Relation:
 
 
 @dataclass
-class ForwardOut:
-    score: torch.Tensor
-    relations: List[Relation] = field(default_factory=list)
-    reg_loss: torch.Tensor = field(default_factory=lambda: torch.zeros(()))
+class GraphOut:
+    embedding: torch.Tensor
+    relations: list[Relation] = field(default_factory=list)
 
 
 @dataclass
 class DataBundle:
-    common_keys: pl.DataFrame
-
     fac_df: pl.DataFrame
     origin_label_df: pl.DataFrame
     norm_label_df: pl.DataFrame
     liquid_df: pl.DataFrame
+    common_keys: Optional[pl.DataFrame] = None

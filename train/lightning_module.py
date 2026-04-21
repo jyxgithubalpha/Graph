@@ -1,68 +1,85 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
-import polars as pl
 import pytorch_lightning as pl_lit
 import torch
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
-from domain.config import ModelConfig, TrainConfig
+from domain.config import GraphConfig, ModelConfig, TrainConfig, EvalConfig
 from domain.types import DayBatch
-from losses import rank_ic_loss, weighted_pairwise_rank_loss
-from modeling.ranker import MultiRelationalFactorGraphRanker
+from graph import GraphFeatureModule
+from model import RankMLP, rank_ic_loss, weighted_pairwise_rank_loss, graph_regularizer
 
 
 class GraphRankLit(pl_lit.LightningModule):
-    def __init__(self, model_cfg: ModelConfig, train_cfg: TrainConfig):
+    def __init__(
+        self,
+        graph_cfg: GraphConfig,
+        model_cfg: ModelConfig,
+        train_cfg: TrainConfig,
+        eval_cfg: EvalConfig,
+    ):
         super().__init__()
-        self.model_cfg = model_cfg
         self.train_cfg = train_cfg
-        self.model = MultiRelationalFactorGraphRanker(model_cfg)
+        self.eval_cfg = eval_cfg
+        self.graph_module = GraphFeatureModule(graph_cfg)
+        self.mlp = RankMLP(graph_cfg.dims.d_model, model_cfg)
         self.prev_latent_adj: Optional[torch.Tensor] = None
         self._val_ic: list[float] = []
         self._val_ret: list[float] = []
         self._test_outputs: list = []
 
-    def _move_batch(self, batch: List[DayBatch]) -> List[DayBatch]:
+    def _move_batch(self, batch: list[DayBatch]) -> list[DayBatch]:
         return [d.to(self.device) for d in batch]
 
     def _top_return(self, scores: torch.Tensor, labels: torch.Tensor, liquid: torch.Tensor) -> float:
-        idx = torch.argsort(scores, descending=True)[:500]
+        top_k = self.eval_cfg.top_k
+        money = self.eval_cfg.money
+        idx = torch.argsort(scores, descending=True)[:top_k]
         liq = torch.clamp(liquid[idx], min=0.0)
         ret = labels[idx]
         cum = torch.cumsum(liq, dim=0)
         prev = torch.cat([torch.zeros(1, device=liq.device), cum[:-1]])
-        hold = torch.minimum(liq, torch.clamp(1.5e9 - prev, min=0.0))
-        return float((hold * ret).sum().item() / 1.5e9)
+        hold = torch.minimum(liq, torch.clamp(money - prev, min=0.0))
+        return float((hold * ret).sum().item() / money)
+
+    def forward(self, batch: DayBatch) -> torch.Tensor:
+        graph_out = self.graph_module(batch)
+        return self.mlp(graph_out.embedding)
 
     def training_step(self, batch, batch_idx):
-        pretrain = self.model_cfg.two_stage and self.current_epoch < self.model_cfg.pretrain_epochs
         losses = []
         for day in self._move_batch(batch):
-            out = self.model(day, prev_latent_adj=self.prev_latent_adj, pretrain=pretrain)
-            if not pretrain:
-                latent = next((r for r in out.relations if r.name == "latent"), None)
-                self.prev_latent_adj = latent.adj.detach() if latent is not None else None
-            rank_l = weighted_pairwise_rank_loss(out.score, day.label)
-            ic_l = rank_ic_loss(out.score, day.label)
-            losses.append(self.model_cfg.w_rank * rank_l + self.model_cfg.w_ic * ic_l + self.model_cfg.w_reg * out.reg_loss)
+            graph_out = self.graph_module(day)
+            score = self.mlp(graph_out.embedding)
+
+            latent = next((r for r in graph_out.relations if "latent" in r.name), None)
+            if latent is not None:
+                self.prev_latent_adj = latent.adj.detach()
+
+            rank_l = weighted_pairwise_rank_loss(score, day.label)
+            ic_l = rank_ic_loss(score, day.label)
+            reg_l = graph_regularizer(graph_out.relations, self.prev_latent_adj)
+            loss = self.train_cfg.w_rank * rank_l + self.train_cfg.w_ic * ic_l + self.train_cfg.w_reg * reg_l
+            losses.append(loss)
+
         loss = torch.stack(losses).mean()
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         for day in self._move_batch(batch):
-            out = self.model(day, pretrain=False)
-            s, y = out.score, day.label
-            ic = float(((s - s.mean()) * (y - y.mean())).mean().item() / (s.std().item() * y.std().item() + 1e-8))
+            score = self(day)
+            y = day.label
+            ic = float(((score - score.mean()) * (y - y.mean())).mean().item() / (score.std().item() * y.std().item() + 1e-8))
             self._val_ic.append(ic)
-            self._val_ret.append(self._top_return(s.detach(), y.detach(), day.liquid.detach()))
+            self._val_ret.append(self._top_return(score.detach(), y.detach(), day.liquid.detach()))
 
     def on_validation_epoch_end(self):
-        val_ic = float(np.mean(self._val_ic))
-        val_top = float(np.mean(self._val_ret))
+        val_ic = float(np.mean(self._val_ic)) if self._val_ic else 0.0
+        val_top = float(np.mean(self._val_ret)) if self._val_ret else 0.0
         self.log("val_ic", val_ic, prog_bar=True)
         self.log("val_top_ret", val_top, prog_bar=True)
         self.log("val_composite", 50.0 * val_top + val_ic, prog_bar=True)
@@ -71,16 +88,13 @@ class GraphRankLit(pl_lit.LightningModule):
 
     def test_step(self, batch, batch_idx):
         for day in self._move_batch(batch):
-            out = self.model(day, pretrain=False)
-            self._test_outputs.append((day.date, list(day.codes), out.score.detach().cpu().numpy()))
+            graph_out = self.graph_module(day)
+            score = self.mlp(graph_out.embedding)
+            embedding = graph_out.embedding.detach().cpu().numpy()
+            self._test_outputs.append((day.date, list(day.codes), embedding, score.detach().cpu().numpy()))
 
     def on_test_epoch_end(self):
-        rows_date, rows_code, rows_score = [], [], []
-        for date, codes, scores in self._test_outputs:
-            rows_date.extend([date] * len(codes))
-            rows_code.extend(codes)
-            rows_score.extend(scores.tolist())
-        self.test_df = pl.DataFrame({"date": rows_date, "Code": rows_code, "score": rows_score}).sort(["date", "Code"])
+        self.test_records = self._test_outputs.copy()
         self._test_outputs.clear()
 
     def configure_optimizers(self):

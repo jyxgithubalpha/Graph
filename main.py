@@ -1,8 +1,16 @@
 import argparse
+import logging
 import os
 
 from domain.config import ExperimentConfig
-from data.io import load_raw_dfs,clean_raw_dfs
+from train import run
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -13,8 +21,8 @@ def main() -> None:
 
     exp_cfg = ExperimentConfig()
     exp_cfg.run.valid_period = args.valid_period
-    
-        
+
+    run(exp_cfg)
 
 
 if __name__ == "__main__":

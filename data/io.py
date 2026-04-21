@@ -1,16 +1,27 @@
 from __future__ import annotations
 
+import logging
+
 import polars as pl
 
-from domain.config import DataConfig
+from domain.config import SourceConfig
 from domain.types import DataBundle
 
+logger = logging.getLogger(__name__)
 
 
-def load_raw_dfs(cfg: DataConfig) -> DataBundle:
+def load_raw_dfs(cfg: SourceConfig) -> DataBundle:
     fac_df = pl.read_ipc(cfg.fac_path, memory_map=False)
     fac_df = fac_df.with_columns(pl.col("date").str.strptime(pl.Date, "%Y%m%d"))
     fac_df = fac_df.with_columns(pl.col("Code").cast(pl.Categorical))
+
+    for batch_name, path in cfg.extra_fac_paths.items():
+        extra_df = pl.read_ipc(path, memory_map=False)
+        extra_df = extra_df.with_columns(pl.col("date").str.strptime(pl.Date, "%Y%m%d"))
+        extra_df = extra_df.with_columns(pl.col("Code").cast(pl.Categorical))
+        new_cols = [c for c in extra_df.columns if c not in ["date", "Code"]]
+        fac_df = fac_df.join(extra_df, on=["date", "Code"], how="left")
+        logger.info("merged extra factor batch=%s, new_cols=%d", batch_name, len(new_cols))
 
     label_df = pl.read_ipc(cfg.label_path, memory_map=False)
     label_df = label_df.rename({"index": "date"})
