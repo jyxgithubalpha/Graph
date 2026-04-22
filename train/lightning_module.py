@@ -59,8 +59,8 @@ class GraphRankLit(pl_lit.LightningModule):
             if latent is not None:
                 self.prev_latent_adj = latent.adj.detach()
 
-            rank_l = weighted_pairwise_rank_loss(score, day.label)
-            ic_l = rank_ic_loss(score, day.label)
+            rank_l = weighted_pairwise_rank_loss(score, day.norm_label)
+            ic_l = rank_ic_loss(score, day.norm_label)
             reg_l = graph_regularizer(graph_out.relations, self.prev_latent_adj)
             loss = self.train_cfg.w_rank * rank_l + self.train_cfg.w_ic * ic_l + self.train_cfg.w_reg * reg_l
             losses.append(loss)
@@ -72,7 +72,7 @@ class GraphRankLit(pl_lit.LightningModule):
     def validation_step(self, batch, batch_idx):
         for day in self._move_batch(batch):
             score = self(day)
-            y = day.label
+            y = day.origin_label
             ic = float(((score - score.mean()) * (y - y.mean())).mean().item() / (score.std().item() * y.std().item() + 1e-8))
             self._val_ic.append(ic)
             self._val_ret.append(self._top_return(score.detach(), y.detach(), day.liquid.detach()))

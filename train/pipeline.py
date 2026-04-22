@@ -39,14 +39,14 @@ def run(exp_cfg: ExperimentConfig) -> None:
     for season in exp_cfg.run.seasons:
         logger.info("=== Season %s ===", season)
 
-        train_df, valid_df, test_df = get_date_lists(
+        train_date_df, valid_date_df, test_date_df = get_date_lists(
             season, exp_cfg.run.valid_period, bundle.common_keys.select("date")
         )
-        logger.info("Train=%d, Valid=%d, Test=%d dates", train_df.height, valid_df.height, test_df.height)
+        logger.info("Train=%d, Valid=%d, Test=%d dates", train_date_df.height, valid_date_df.height, test_date_df.height)
 
-        train_ds = GraphDataset(bundle, train_df, factor_cols, ret_hist_cache, exp_cfg.feature.hist_len)
-        valid_ds = GraphDataset(bundle, valid_df, factor_cols, ret_hist_cache, exp_cfg.feature.hist_len)
-        test_ds = GraphDataset(bundle, test_df, factor_cols, ret_hist_cache, exp_cfg.feature.hist_len)
+        train_ds = GraphDataset(bundle, train_date_df, factor_cols, ret_hist_cache, exp_cfg.feature.hist_len)
+        valid_ds = GraphDataset(bundle, valid_date_df, factor_cols, ret_hist_cache, exp_cfg.feature.hist_len)
+        test_ds = GraphDataset(bundle, test_date_df, factor_cols, ret_hist_cache, exp_cfg.feature.hist_len)
 
         train_dl = make_dataloader(train_ds, batch_size=exp_cfg.train.batch_size, shuffle=True)
         valid_dl = make_dataloader(valid_ds, batch_size=1, shuffle=False)

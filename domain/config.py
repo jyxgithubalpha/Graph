@@ -18,7 +18,7 @@ class SourceConfig:
 class FeatureConfig:
     factor_cols: Optional[list[str]] = None
     factor_prefix: Optional[str] = None
-    hist_len: int = 20
+    hist_len: int = 10
 
 
 @dataclass
@@ -27,9 +27,9 @@ class ModelDimConfig:
     f_meta: int = 2
     d_factor: int = 64
     d_tmp: int = 32
-    d_model: int = 96
-    d_edge: int = 8
-    n_heads: int = 4
+    d_model: int = 48
+    d_edge: int = 4
+    n_heads: int = 2
     dropout: float = 0.2
     temporal_encoder: Literal["tcn", "gru"] = "tcn"
 
@@ -86,7 +86,7 @@ class ModelConfig:
 @dataclass
 class TrainConfig:
     max_epochs: int = 20
-    batch_size: int = 4
+    batch_size: int = 1
     lr: float = 1e-3
     weight_decay: float = 1e-2
     early_stop_patience: int = 8

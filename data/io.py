@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-
+import math
 import polars as pl
 
 from domain.config import SourceConfig
@@ -50,9 +50,16 @@ def clean_raw_dfs(data_bundle: DataBundle, min_valid_ratio: float = 0.1,) -> Dat
     
     # 筛选掉有效值少于阈值的行
     factor_cols = [c for c in fac_df.columns if c not in ["date", "Code"]]
-    valid_count_expr = sum(pl.col(c).is_not_null() & pl.col(c).is_not_nan() for c in factor_cols)
-    fac_df = fac_df.filter(valid_count_expr >= len(factor_cols) * min_valid_ratio)
-    
+    min_valid_count = math.ceil(len(factor_cols) * min_valid_ratio)
+    valid_count_expr = pl.sum_horizontal([
+        (
+            pl.col(c).is_not_null() &
+            pl.col(c).is_not_nan()
+        ).cast(pl.UInt16)
+        for c in factor_cols
+    ])
+    fac_df = fac_df.filter(valid_count_expr >= min_valid_count)
+
     # 按照截面（同一日期）对因子值进行中位数填充
     factor_cols = [c for c in fac_df.columns if c not in ["date", "Code"]]
     fac_df = fac_df.with_columns(

@@ -15,7 +15,8 @@ class DayBatch:
     x_factor: torch.Tensor
     x_meta: torch.Tensor
     ret_hist: torch.Tensor
-    label: torch.Tensor
+    norm_label: torch.Tensor
+    origin_label: torch.Tensor
     liquid: torch.Tensor
 
     def to(self, device):

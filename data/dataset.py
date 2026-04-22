@@ -28,6 +28,7 @@ class GraphDataset(Dataset):
 
         self.fac_df = bundle.fac_df
         self.norm_label_df = bundle.norm_label_df
+        self.origin_label_df = bundle.origin_label_df
         self.liquid_df = bundle.liquid_df
 
     def __len__(self) -> int:
@@ -40,10 +41,12 @@ class GraphDataset(Dataset):
 
         x_factor = day_fac.select(self.factor_cols).to_numpy().astype(np.float32)
 
-        day_label = self.norm_label_df.filter(pl.col("date") == d).select(["Code", "label"]).rename({"label": "_label"})
+        day_norm_label = self.norm_label_df.filter(pl.col("date") == d).select(["Code", "label"]).rename({"label": "_norm_label"})
+        day_origin_label = self.origin_label_df.filter(pl.col("date") == d).select(["Code", "label"]).rename({"label": "_origin_label"})
         day_liq = self.liquid_df.filter(pl.col("date") == d).select(["Code", "liq"]).rename({"liq": "_liq"})
-        joined = pl.DataFrame({"Code": codes}).join(day_label, on="Code", how="left").join(day_liq, on="Code", how="left")
-        label_np = joined["_label"].fill_null(0.0).to_numpy().astype(np.float32)
+        joined = pl.DataFrame({"Code": codes}).with_columns(pl.col("Code").cast(pl.Categorical)).join(day_norm_label, on="Code", how="left").join(day_origin_label, on="Code", how="left").join(day_liq, on="Code", how="left")
+        norm_label_np = joined["_norm_label"].fill_null(0.0).to_numpy().astype(np.float32)
+        origin_label_np = joined["_origin_label"].fill_null(0.0).to_numpy().astype(np.float32)
         liquid_np = joined["_liq"].fill_null(0.0).to_numpy().astype(np.float32)
 
         hist_codes, hist_mat = self.ret_hist_cache.get(d, ([], np.zeros((0, self.hist_len), dtype=np.float32)))
@@ -65,7 +68,8 @@ class GraphDataset(Dataset):
             x_factor=torch.from_numpy(np.nan_to_num(x_factor)),
             x_meta=torch.from_numpy(np.nan_to_num(x_meta)),
             ret_hist=torch.from_numpy(np.nan_to_num(ret_hist)),
-            label=torch.from_numpy(np.nan_to_num(label_np)),
+            norm_label=torch.from_numpy(np.nan_to_num(norm_label_np)),
+            origin_label=torch.from_numpy(np.nan_to_num(origin_label_np)),
             liquid=torch.from_numpy(np.nan_to_num(liquid_np)),
         )
 
