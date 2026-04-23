@@ -30,6 +30,7 @@ def get_date_lists(
     start_date: str = "20210101",
     gap_days: int = 10,
 ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+    date_df = date_df.sort("date").unique("date")
     train_start, valid_start, valid_end, test_start, test_end = get_date_split(season, period)
     start_date_obj = datetime.strptime(start_date, "%Y%m%d").date()
 

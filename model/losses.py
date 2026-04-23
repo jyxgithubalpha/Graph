@@ -12,7 +12,7 @@ def _as_2d(x: torch.Tensor) -> torch.Tensor:
     return x.unsqueeze(0) if x.ndim == 1 else x
 
 
-def rank_ic_loss(scores: torch.Tensor, returns: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+def ic_loss(scores: torch.Tensor, returns: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
     scores = _as_2d(scores)
     returns = _as_2d(returns)
     mask = _as_2d(mask) if mask is not None else None
@@ -111,7 +111,7 @@ def combined_loss(
     if w_rank > 0:
         loss = loss + w_rank * weighted_pairwise_rank_loss(scores, returns, mask)
     if w_ic > 0:
-        loss = loss + w_ic * rank_ic_loss(scores, returns, mask)
+        loss = loss + w_ic * ic_loss(scores, returns, mask)
     if w_reg > 0 and relations is not None:
         loss = loss + w_reg * graph_regularizer(relations)
 

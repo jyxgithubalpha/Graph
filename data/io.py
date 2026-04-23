@@ -89,16 +89,23 @@ def clean_raw_dfs(data_bundle: DataBundle, min_valid_ratio: float = 0.1,) -> Dat
     varying_cols = [c for c in factor_cols if c not in constant_cols]
 
     # 对constant_cols进行时序zscore标准化
-    if constant_cols:
-        fac_df = fac_df.with_columns(
-            (
-                (pl.col(constant_cols) - pl.col(constant_cols).mean().over("Code")) /
-                (pl.col(constant_cols).std().over("Code") + 1e-8)
-            )
-        )
+    # if constant_cols:
+    #     fac_df = fac_df.with_columns(
+    #         (
+    #             (pl.col(constant_cols) - pl.col(constant_cols).mean().over("Code")) /
+    #             (pl.col(constant_cols).std().over("Code") + 1e-8)
+    #         )
+    #     )
 
-    # 对varying_cols进行截面zscore标准化
+    # 对varying_cols进行截面zscore标准化（先winsorize再zscore）
     if varying_cols:
+        fac_df = fac_df.with_columns([
+            pl.col(c).clip(
+                pl.col(c).quantile(0.05).over("date"),
+                pl.col(c).quantile(0.95).over("date")
+            ).alias(c)
+            for c in varying_cols
+        ])
         fac_df = fac_df.with_columns([
             ((pl.col(c) - pl.col(c).mean().over("date")) / (pl.col(c).std().over("date") + 1e-8)).alias(c)
             for c in varying_cols
@@ -120,6 +127,7 @@ def clean_raw_dfs(data_bundle: DataBundle, min_valid_ratio: float = 0.1,) -> Dat
     common_keys = (
         fac_df.select("date", "Code")
         .join(norm_label_df.select("date", "Code"), on=["date", "Code"], how="inner")
+        .join(origin_label_df.select("date", "Code"), on=["date", "Code"], how="inner")
         .join(liquid_df.select("date", "Code"), on=["date", "Code"], how="inner")
     )
     

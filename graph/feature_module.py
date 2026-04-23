@@ -18,7 +18,7 @@ class GraphFeatureModule(nn.Module):
     def __init__(self, graph_cfg: GraphConfig):
         super().__init__()
         dims = graph_cfg.dims
-        self.node_encoder = build_node_encoder(dims)
+        self.node_encoder = build_node_encoder(dims, graph_cfg.hist_len)
 
         graphs = []
         if graph_cfg.factor_factor_similarity_topk_neighbor.enabled:

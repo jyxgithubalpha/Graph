@@ -18,7 +18,7 @@ class SourceConfig:
 class FeatureConfig:
     factor_cols: Optional[list[str]] = None
     factor_prefix: Optional[str] = None
-    hist_len: int = 10
+    hist_len: int = 5
 
 
 @dataclass
@@ -27,7 +27,7 @@ class ModelDimConfig:
     f_meta: int = 2
     d_factor: int = 64
     d_tmp: int = 32
-    d_model: int = 48
+    d_model: int = 24
     d_edge: int = 4
     n_heads: int = 2
     dropout: float = 0.2
@@ -65,6 +65,7 @@ class FactorLatentAttentionTopkNeighborConfig:
 @dataclass
 class GraphConfig:
     dims: ModelDimConfig = field(default_factory=ModelDimConfig)
+    hist_len: int = 5
     composer: Literal["semiring", "sum", "max", "agr", "attn"] = "semiring"
     factor_factor_similarity_topk_neighbor: FactorFactorSimilarityTopkNeighborConfig = field(
         default_factory=FactorFactorSimilarityTopkNeighborConfig
@@ -85,7 +86,7 @@ class ModelConfig:
 
 @dataclass
 class TrainConfig:
-    max_epochs: int = 20
+    max_epochs: int = 2
     batch_size: int = 1
     lr: float = 1e-3
     weight_decay: float = 1e-2
@@ -109,6 +110,7 @@ class RunConfig:
         "2025q1", "2025q2"
     ])
     valid_period: int = 1
+    gap_days: int = 10
     seed: int = 42
     results_dir: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.dirname(__file__)), "results"
@@ -124,3 +126,4 @@ class ExperimentConfig:
     train: TrainConfig = field(default_factory=TrainConfig)
     eval: EvalConfig = field(default_factory=EvalConfig)
     run: RunConfig = field(default_factory=RunConfig)
+

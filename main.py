@@ -21,6 +21,8 @@ def main() -> None:
 
     exp_cfg = ExperimentConfig()
     exp_cfg.run.valid_period = args.valid_period
+    exp_cfg.graph.hist_len = exp_cfg.feature.hist_len
+    assert exp_cfg.feature.hist_len <= exp_cfg.run.gap_days
 
     run(exp_cfg)
 

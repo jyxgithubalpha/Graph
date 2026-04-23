@@ -40,20 +40,21 @@ class NodeFeatureFusion(nn.Module):
 class NodeEncoder(nn.Module):
     """Encode batch features into node embeddings h [N, d_model]."""
 
-    def __init__(self, dims: ModelDimConfig):
+    def __init__(self, dims: ModelDimConfig, hist_len: int = 10):
         super().__init__()
         self.factor_enc = FactorEncoder(dims.f_factor, dims.d_factor, dims.dropout)
         if dims.temporal_encoder == "tcn":
-            self.tmp_enc = TCNTemporalEncoder(20, dims.d_tmp, dims.dropout)
+            self.tmp_enc = TCNTemporalEncoder(hist_len, dims.d_tmp, dims.dropout)
         else:
-            self.tmp_enc = GRUTemporalEncoder(20, dims.d_tmp, dims.dropout)
+            self.tmp_enc = GRUTemporalEncoder(hist_len, dims.d_tmp, dims.dropout)
         self.fusion = NodeFeatureFusion(dims.d_factor, dims.d_tmp, dims.f_meta, dims.d_model, dims.dropout)
 
     def forward(self, batch: DayBatch) -> torch.Tensor:
         h_factor = self.factor_enc(batch.x_factor)
         h_tmp = self.tmp_enc(batch.ret_hist)
-        return self.fusion(h_factor, h_tmp, batch.x_meta)
+        x_meta = batch.x_meta
+        return self.fusion(h_factor, h_tmp, x_meta)
 
 
-def build_node_encoder(dims: ModelDimConfig) -> NodeEncoder:
-    return NodeEncoder(dims)
+def build_node_encoder(dims: ModelDimConfig, hist_len: int = 10) -> NodeEncoder:
+    return NodeEncoder(dims, hist_len)

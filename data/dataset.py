@@ -57,11 +57,10 @@ class GraphDataset(Dataset):
             if r is not None:
                 ret_hist[i] = hist_mat[r]
 
-        x_meta = np.stack([
-            np.log1p(np.clip(liquid_np, 0.0, None)),
-            ret_hist[:, -5:].sum(axis=1),
-        ], axis=1).astype(np.float32)
+        x_meta = np.zeros((len(codes), 2), dtype=np.float32)
+        ret_hist = np.zeros((len(codes), self.hist_len), dtype=np.float32)
 
+        
         return DayBatch(
             date=d,
             codes=codes,

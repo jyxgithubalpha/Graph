@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-
+import torch
 import polars as pl
 import pytorch_lightning as pl_lit
 
@@ -40,9 +40,8 @@ def run(exp_cfg: ExperimentConfig) -> None:
         logger.info("=== Season %s ===", season)
 
         train_date_df, valid_date_df, test_date_df = get_date_lists(
-            season, exp_cfg.run.valid_period, bundle.common_keys.select("date")
+            season, exp_cfg.run.valid_period, bundle.common_keys.select("date"), gap_days=exp_cfg.run.gap_days
         )
-        logger.info("Train=%d, Valid=%d, Test=%d dates", train_date_df.height, valid_date_df.height, test_date_df.height)
 
         train_ds = GraphDataset(bundle, train_date_df, factor_cols, ret_hist_cache, exp_cfg.feature.hist_len)
         valid_ds = GraphDataset(bundle, valid_date_df, factor_cols, ret_hist_cache, exp_cfg.feature.hist_len)
@@ -78,3 +77,20 @@ def run(exp_cfg: ExperimentConfig) -> None:
         out_dir = os.path.join(exp_cfg.run.results_dir, season)
         dump_season_outputs(out_dir, lit.test_records, exp_cfg.graph.dims.d_model)
         logger.info("Dumped outputs to %s", out_dir)
+
+
+        del lit, train_dl, valid_dl, test_dl
+        del train_ds, valid_ds, test_ds
+        del trainer
+        
+        import gc
+        gc.collect()
+        
+        torch.cuda.empty_cache()
+        
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.synchronize()
+        
+        logger.info("Cleared GPU memory for season %s", season)
+        
+

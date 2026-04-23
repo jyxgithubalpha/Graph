@@ -10,7 +10,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from domain.config import GraphConfig, ModelConfig, TrainConfig, EvalConfig
 from domain.types import DayBatch
 from graph import GraphFeatureModule
-from model import RankMLP, rank_ic_loss, weighted_pairwise_rank_loss, graph_regularizer
+from model import RankMLP, ic_loss, weighted_pairwise_rank_loss, graph_regularizer
 
 
 class GraphRankLit(pl_lit.LightningModule):
@@ -60,7 +60,7 @@ class GraphRankLit(pl_lit.LightningModule):
                 self.prev_latent_adj = latent.adj.detach()
 
             rank_l = weighted_pairwise_rank_loss(score, day.norm_label)
-            ic_l = rank_ic_loss(score, day.norm_label)
+            ic_l = ic_loss(score, day.norm_label)
             reg_l = graph_regularizer(graph_out.relations, self.prev_latent_adj)
             loss = self.train_cfg.w_rank * rank_l + self.train_cfg.w_ic * ic_l + self.train_cfg.w_reg * reg_l
             losses.append(loss)
