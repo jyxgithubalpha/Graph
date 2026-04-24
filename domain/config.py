@@ -18,7 +18,7 @@ class SourceConfig:
 class FeatureConfig:
     factor_cols: Optional[list[str]] = None
     factor_prefix: Optional[str] = None
-    hist_len: int = 5
+    hist_len: int = 10
 
 
 @dataclass
@@ -65,7 +65,7 @@ class FactorLatentAttentionTopkNeighborConfig:
 @dataclass
 class GraphConfig:
     dims: ModelDimConfig = field(default_factory=ModelDimConfig)
-    hist_len: int = 5
+    hist_len: int = 10
     composer: Literal["semiring", "sum", "max", "agr", "attn"] = "semiring"
     factor_factor_similarity_topk_neighbor: FactorFactorSimilarityTopkNeighborConfig = field(
         default_factory=FactorFactorSimilarityTopkNeighborConfig

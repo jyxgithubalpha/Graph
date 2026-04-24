@@ -58,7 +58,7 @@ class GraphDataset(Dataset):
                 ret_hist[i] = hist_mat[r]
 
         x_meta = np.zeros((len(codes), 2), dtype=np.float32)
-        ret_hist = np.zeros((len(codes), self.hist_len), dtype=np.float32)
+        # ret_hist = np.zeros((len(codes), self.hist_len), dtype=np.float32)
 
         
         return DayBatch(
@@ -74,4 +74,4 @@ class GraphDataset(Dataset):
 
 
 def make_dataloader(dataset: GraphDataset, batch_size: int = 1, shuffle: bool = True) -> DataLoader:
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=0, collate_fn=lambda b: b, drop_last=False)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=128, collate_fn=lambda b: b, drop_last=False)

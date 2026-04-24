@@ -14,7 +14,7 @@ logging.basicConfig(
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gpus", type=int, choices=[0, 1, 2, 3], default=0)
+    ap.add_argument("--gpus", type=int, choices=[0, 1, 2, 3, 4, 5, 6, 7], default=4)
     ap.add_argument("--valid_period", type=int, choices=[1, 2, 3, 4], default=1)
     args = ap.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpus)
